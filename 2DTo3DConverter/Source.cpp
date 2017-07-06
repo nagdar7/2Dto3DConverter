@@ -1,6 +1,4 @@
 #include "opencv2/opencv.hpp"
-using namespace cv;
-using namespace std;
 #include <map>
 #include <sstream>
 #include "opencv2/highgui/highgui.hpp"
@@ -9,15 +7,9 @@ using namespace std;
 #include <stdio.h>
 #include <stdlib.h>
 
+using namespace cv;
+using namespace std;
 using std::vector;
-
-template <class T>
-inline std::string to_string(const T& t)
-{
-	std::stringstream ss;
-	ss << t;
-	return ss.str();
-}
 
 class DbScan
 {
@@ -179,291 +171,8 @@ public:
 	}
 };
 
-cv::Scalar HSVtoRGBcvScalar(int H, int S, int V) {
-
-	int bH = H; // H component
-	int bS = S; // S component
-	int bV = V; // V component
-	double fH, fS, fV;
-	double fR, fG, fB;
-	const double double_TO_BYTE = 255.0f;
-	const double BYTE_TO_double = 1.0f / double_TO_BYTE;
-
-	// Convert from 8-bit integers to doubles
-	fH = (double)bH * BYTE_TO_double;
-	fS = (double)bS * BYTE_TO_double;
-	fV = (double)bV * BYTE_TO_double;
-
-	// Convert from HSV to RGB, using double ranges 0.0 to 1.0
-	int iI;
-	double fI, fF, p, q, t;
-
-	if (bS == 0) {
-		// achromatic (grey)
-		fR = fG = fB = fV;
-	}
-	else {
-		// If Hue == 1.0, then wrap it around the circle to 0.0
-		if (fH >= 1.0f)
-			fH = 0.0f;
-
-		fH *= 6.0; // sector 0 to 5
-		fI = floor(fH); // integer part of h (0,1,2,3,4,5 or 6)
-		iI = (int)fH; // " " " "
-		fF = fH - fI; // factorial part of h (0 to 1)
-
-		p = fV * (1.0f - fS);
-		q = fV * (1.0f - fS * fF);
-		t = fV * (1.0f - fS * (1.0f - fF));
-
-		switch (iI) {
-		case 0:
-			fR = fV;
-			fG = t;
-			fB = p;
-			break;
-		case 1:
-			fR = q;
-			fG = fV;
-			fB = p;
-			break;
-		case 2:
-			fR = p;
-			fG = fV;
-			fB = t;
-			break;
-		case 3:
-			fR = p;
-			fG = q;
-			fB = fV;
-			break;
-		case 4:
-			fR = t;
-			fG = p;
-			fB = fV;
-			break;
-		default: // case 5 (or 6):
-			fR = fV;
-			fG = p;
-			fB = q;
-			break;
-		}
-	}
-
-	// Convert from doubles to 8-bit integers
-	int bR = (int)(fR * double_TO_BYTE);
-	int bG = (int)(fG * double_TO_BYTE);
-	int bB = (int)(fB * double_TO_BYTE);
-
-	// Clip the values to make sure it fits within the 8bits.
-	if (bR > 255)
-		bR = 255;
-	if (bR < 0)
-		bR = 0;
-	if (bG >255)
-		bG = 255;
-	if (bG < 0)
-		bG = 0;
-	if (bB > 255)
-		bB = 255;
-	if (bB < 0)
-		bB = 0;
-
-	// Set the RGB cvScalar with G B R, you can use this values as you want too..
-	return cv::Scalar(bB, bG, bR); // R component
-}
-
-Mat im; Mat src_gray;
-int thresh = 100;
-int max_thresh = 255;
-RNG rng(12345);
-
-int main(int argc, char** argv)
-{
-	/// Load source image and convert it to gray
-	if (argc != 2) {
-		return -1;
-	}
-	im = imread(argv[1], 1);
-
-	/// Convert image to gray and blur it
-	cvtColor(im, src_gray, CV_BGR2GRAY);
-	blur(src_gray, src_gray, Size(3, 3));
-
-	/*/// Create Window
-	char* source_window = "Source";
-	namedWindow(source_window, CV_WINDOW_AUTOSIZE);
-	imshow(source_window, im);
-
-	createTrackbar(" Canny thresh:", "Source", &thresh, max_thresh, thresh_callback);
-	thresh_callback(0, 0);
-
-	waitKey(0);*/
-
-	Mat canny_output;
-	std::vector<std::vector<cv::Point> > contours;
-	std::vector<cv::Vec4i> hierarchy;
-	//findContours(im.clone(), contours, hierarchy, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
-
-
-	/// Detect edges using canny
-	Canny(src_gray, canny_output, thresh, thresh * 2, 3);
-	/// Find contours
-	findContours(canny_output, contours, hierarchy, RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
-	//findContours(canny_output, contours, hierarchy, Imgproc.RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
-
-
-	//vector<Point> approxShape;
-	//for (size_t i = 0; i < contours.size(); i++) {
-		//approxPolyDP(contours[i], approxShape, arcLength(Mat(contours[i]), true)*0.04, true);
-		//drawContours(drawing, contours, i, Scalar(255, 0, 0), CV_FILLED);   // fill BLUE
-	//}
-
-
-
-
-
-	vector<Rect> boxes;
-	for (size_t i = 0; i < contours.size(); i++)
-	{
-		Rect r = boundingRect(contours[i]);
-		boxes.push_back(r);
-	}
-	int dbScanDistance = 10;//((im.size().height + im.size().width) /2) * 0.01;
-	DbScan dbscan(boxes, dbScanDistance, 2); 
-	dbscan.run();
-	//done, perform display
-
-
-
-
-
-
-	//Set linear gradient (255 gray levels)
-	Mat lines(im.size(), CV_8U, Scalar(0));
-	int col = 0; // goes from 32 to 223
-	int rowLen = lines.rows;
-	for (int r = 0; r < rowLen; r++)
-	{
-		col = (191 * r) / rowLen;
-		lines.row(r).setTo(col + 32);
-	}
-	//namedWindow("Linear Gradient", CV_WINDOW_NORMAL);
-	//imshow("Linear Gradient", lines);
-
-
-	
-
-
-	Mat grouped = Mat::zeros(im.size(), CV_8UC3);//lines;//
-
-
-
-
-
-	
-
-
-	std::vector<std::vector<cv::Point> > contours2(dbscan.C + 1, std::vector<cv::Point>() );
-	/*for(int i=0; i<contours2.size(); ++i){
-		contours2[i] = std::vector<cv::Point>();
-	}*/
-	vector<Scalar> colors;
-	RNG rng(3);
-	int colr = 0;
-	for (int i = 0;i <= dbscan.C;i++)
-	{
-		//colors.push_back(HSVtoRGBcvScalar(rng(255), 255, 255));
-		colr = 32 + (191*i) / dbscan.C;
-		colors.push_back(Scalar(256 - colr, 256 - colr, 256 - colr));
-	}
-	for (int i = 0;i<dbscan.data.size();i++)
-	{
-		Scalar color;
-		if (dbscan.labels[i] == -1)
-		{
-			color = Scalar(128, 128, 128);
-		}
-		else
-		{
-			int label = dbscan.labels[i];
-			color = colors[label];
-			contours2[label].insert(contours2[label].end(), contours[i].begin(), contours[i].end());
-		}
-		// putText(grouped, to_string(dbscan.labels[i]), dbscan.data[i].tl(), FONT_HERSHEY_COMPLEX, .5, color, 1);
-		
-		drawContours(grouped, contours, i, color, CV_FILLED);
-		//Point seedPoint = Point(-1,-1);
-		//floodFill(grouped, contours.at(i).at(0), color);
-		//cvFloodFill(grouped, seedPoint, color, cvScalarAll(3.5), cvScalarAll(3.5), NULL, 4, NULL);
-
-
-		/*std::vector<cv::Point> points;
-		points.insert(points.end(), contours[i].begin(), contours[i].end());
-		points.insert(points.end(), contour2.begin(), contour2.end());
-		convexHull(cv::Mat(points), contour);*/
-
-
-	}
-
-	Mat drawingContours2 = Mat::zeros(grouped.size(), CV_8UC3);
-	for (int i = 0; i< contours2.size(); i++)
-	{
-		Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
-		drawContours(drawingContours2, contours2, i, color, CV_FILLED, 8, vector<Vec4i>(), 0, Point());
-		//drawContours(drawingContours2, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point());
-	}
-	namedWindow("my demo", CV_WINDOW_AUTOSIZE);
-	imshow("my demo", drawingContours2);
-
-
-
-
-
-	vector<vector<Point> >hull(contours2.size());
-	for (int i = 0; i < contours2.size(); i++)
-	{
-		convexHull(Mat(contours2[i]), hull[i], false);
-	}
-
-
-
-	/// Draw contours + hull results
-	Mat drawing = Mat::zeros(grouped.size(), CV_8UC3);
-	for (int i = 0; i< contours2.size(); i++)
-	{
-		Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
-		//drawContours(drawing, contours2, i, color, -100, 8, vector<Vec4i>(), 0, Point());
-		drawContours(drawing, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point());
-	}
-
-	/// Show in a window
-	namedWindow("Hull demo", CV_WINDOW_AUTOSIZE);
-	imshow("Hull demo", drawing);
-
-
-
-
-
-
-
-
-	imshow("grouped", grouped);
-	imwrite("../data/grouped.jpg", grouped);
-	waitKey(0);
-}
-
-
-///** @function thresh_callback */
-//void thresh_callback(int, void*)
-//{
-//	Mat canny_output;
-//	vector<vector<Point> > contours;
-//	vector<Vec4i> hierarchy;
-//
-//	/// Detect edges using canny
 //	Canny(src_gray, canny_output, thresh, thresh * 2, 3);
-//	/// Find contours
+
 //	findContours(canny_output, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
 //
 //	/// Draw contours
@@ -477,4 +186,145 @@ int main(int argc, char** argv)
 //	/// Show in a window
 //	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
 //	imshow("Contours", drawing);
-//}
+
+Point getMaxPoint(std::vector<cv::Point> &points, int vertical, int horizontal) {
+	Point max(points.at(0));
+	for (auto &point : points) // access by reference to avoid copying
+	{
+		if ((horizontal * point.x > horizontal * max.x) || (vertical * point.y > vertical * max.y)) {
+			max = point;
+		}
+	}
+	return max;
+}
+
+Point getBottomPoint(std::vector<cv::Point> &points){
+	return getMaxPoint(points, 1, 0);
+}
+
+int main(int argc, char** argv)
+{
+	/// Initialize vars
+	Mat im; 
+	Mat src_gray;
+	int thresh = 100;
+	int max_thresh = 255;
+	RNG rng(12345);
+
+	/// Load source image and convert it to gray
+	if (argc != 2) {
+		return -1;
+	}
+	im = imread(argv[1], 1);
+
+	/// Convert image to gray and blur it
+	cvtColor(im, src_gray, CV_BGR2GRAY);
+	blur(src_gray, src_gray, Size(3, 3));
+
+	Mat canny_output;
+	std::vector<std::vector<cv::Point> > contours;
+	std::vector<cv::Vec4i> hierarchy;
+
+
+	/// Detect edges using canny
+	Canny(src_gray, canny_output, thresh, thresh * 2, 3);
+	/// Find contours
+	findContours(canny_output, contours, hierarchy, RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+	//findContours(canny_output, contours, hierarchy, Imgproc.RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+	//findContours(im.clone(), contours, hierarchy, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+
+	/// Convert every contour into its bounding box
+	vector<Rect> boxes;
+	for (size_t i = 0; i < contours.size(); i++)
+	{
+		Rect r = boundingRect(contours[i]);
+		boxes.push_back(r);
+	}
+
+	/// Merge bounding boxes that come from same object
+	int dbScanDistance = ((im.size().height + im.size().width) /2) * 0.02;//10;//
+	DbScan dbscan(boxes, dbScanDistance, 2); 
+	dbscan.run();
+	
+	/// Set linear gradient (255 gray levels)
+	Mat lines(im.size(), CV_8U, Scalar(0));
+	int col = 0; // goes from 32 to 223
+	int rowLen = lines.rows;
+	for (int r = 0; r < rowLen; r++)
+	{
+		col = (191 * r) / rowLen;
+		lines.row(r).setTo(col + 32);
+	}
+	//namedWindow("Linear Gradient", CV_WINDOW_NORMAL);
+	//imshow("Linear Gradient", lines);
+
+	Mat grouped = lines;//Mat::zeros(im.size(), CV_8UC3);//
+
+	std::vector<std::vector<cv::Point> > contours2(dbscan.C + 1, std::vector<cv::Point>() );
+	vector<Scalar> colors;
+	RNG rng2(3);
+	int colr = 0;
+	for (int i = 0;i <= dbscan.C;i++)
+	{
+		//colors.push_back(HSVtoRGBcvScalar(rng(255), 255, 255));
+		colr = 32 + (191*i) / dbscan.C;
+		//colors.push_back(Scalar(256 - colr, 256 - colr, 256 - colr));
+	}
+	for (int i = 0;i<dbscan.data.size();i++)
+	{
+		Scalar color;
+		if (dbscan.labels[i] == -1)
+		{
+			color = Scalar(128, 128, 128);
+		}
+		else
+		{
+			int label = dbscan.labels[i];
+			//color = colors[label];
+			contours2[label].insert(contours2[label].end(), contours[i].begin(), contours[i].end());
+		}
+
+		//drawContours(grouped, contours, i, color, CV_FILLED);
+	}
+
+	/// Draw merged contours on new image
+	Mat drawingContours2 = Mat::zeros(grouped.size(), CV_8UC3);
+	for (int i = 0; i< contours2.size(); i++)
+	{
+		// find bottom pixel on contours2
+		Point bottomPoint = getBottomPoint(contours2[i]);
+		// get color from pixel beneeth
+		colors.push_back(grouped.at<uchar>(Point(bottomPoint.x, bottomPoint.y)));
+
+		Scalar color = Scalar(rng2.uniform(0, 255), rng2.uniform(0, 255), rng2.uniform(0, 255));
+		drawContours(drawingContours2, contours2, i, color, CV_FILLED, 8, vector<Vec4i>(), 0, Point());
+		//drawContours(drawingContours2, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point());
+	}
+	//namedWindow("my demo", CV_WINDOW_AUTOSIZE);
+	//imshow("my demo", drawingContours2);
+
+	/// Fill single object with color
+	vector<vector<Point> >hull(contours2.size());
+	for (int i = 0; i < contours2.size(); i++)
+	{
+		convexHull(Mat(contours2[i]), hull[i], false);
+	}
+
+	/// Draw contours + hull results
+	Mat drawing = Mat::zeros(grouped.size(), CV_8UC3);
+	for (int i = 0; i< contours2.size(); i++)
+	{
+		Scalar color = colors[i];//Scalar(rng2.uniform(0, 255), rng2.uniform(0, 255), rng2.uniform(0, 255));//
+		//drawContours(drawing, contours2, i, color, -100, 8, vector<Vec4i>(), 0, Point());
+		drawContours(grouped, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point());
+		// drawContours(drawing, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point());
+	}
+	/// Show in a window
+	//namedWindow("Hull demo", CV_WINDOW_AUTOSIZE);
+	//imshow("Hull demo", drawing);
+
+	imshow("im", im);
+	imshow("grouped", grouped);
+	imwrite("../data/grouped.jpg", grouped);
+	waitKey(0);
+}
