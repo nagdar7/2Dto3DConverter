@@ -187,6 +187,71 @@ public:
 //	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
 //	imshow("Contours", drawing);
 
+// this class is for OpenCV ParallelLoopBody
+//class Parallel_pixel_opencv : public ParallelLoopBody
+//{
+//private:
+//	uchar *p;
+//public:
+//	Parallel_pixel_opencv(uchar* ptr) : p(ptr) {}
+//
+//	virtual void operator()(const Range &r) const
+//	{
+//		for (register int i = r.start; i != r.end; ++i)
+//		{
+//			//p[i] = (uchar)cos(p[i]);
+//			p[i] = 127;
+//		}
+//	}
+//};
+
+void generateRedCyan(Mat &retImage, Mat &image, Mat &depthMap) {
+	Mat channel[3];
+	//imshow("Original Image", image);
+
+	// The actual splitting.
+	split(image, channel);
+
+	//channel[0] = Mat::zeros(image.rows, image.cols, CV_8UC1);//Set blue channel to 0
+	//channel[1] = Mat::zeros(image.rows, image.cols, CV_8UC1);//Set green channel to 0
+	
+	//channel2[2] = Mat::zeros(image.rows, image.cols, CV_8UC1);//Set red channel to 0
+
+	//merge(channel, 3, red);
+	//merge(channel2, 3, cyan);
+
+	// Parallel for
+	//int width = image.size().width;
+	//int height = image.size().height;
+	//int nElements = width*height;
+	//uchar* p3 = image.data;
+	//parallel_for_(Range(0, image.size().area()), Parallel_pixel_opencv(p3));
+
+	// Now I can access each channel separately
+	int n, m;
+	for (int i = 0; i<image.rows; i++){
+		for (int j = 0; j<image.cols; j++){
+			n = depthMap.at<uchar>(i,j);
+			m = (15 * n)/255;
+			if (j < image.cols - m - 1){
+				//channel[0].at<uchar>(i, j) = channel[0].at<uchar>(i, j + m);
+				image.at<cv::Vec3b>(i, j)[0] = image.at<cv::Vec3b>(i, j + m)[0];
+				//channel[1].at<uchar>(i, j) = channel[1].at<uchar>(i, j + m);
+				image.at<cv::Vec3b>(i, j)[1] = image.at<cv::Vec3b>(i, j + m)[1];
+			}
+			if (j > m){
+				//channel[2].at<uchar>(i, j) = channel[2].at<uchar>(i, j - m);
+				//image.at<cv::Vec3b>(i, j)[2] = image.at<cv::Vec3b>(i, j - m)[2];
+			}
+			//grouped.at<uchar>(Point(bottomPoint.x, bottomPoint.y))
+			//std::cout << three_channels[0].at<uchar>(i, j) << " " << three_channels[1].at<uchar>(i, j) << " " << three_channels[2].at<uchar>(i, j) << std::endl;
+		}
+	}
+	//merge(channel, 3, retImage);
+
+	retImage = image;
+}
+
 Point getMaxPoint(std::vector<cv::Point> &points, int vertical, int horizontal) {
 	Point max(points.at(0));
 	for (auto &point : points) // access by reference to avoid copying
@@ -202,36 +267,49 @@ Point getBottomPoint(std::vector<cv::Point> &points){
 	return getMaxPoint(points, 1, 0);
 }
 
+void getDistinctContures(Mat &insertImage, std::vector<std::vector<cv::Point> > &contours, int thresh = 100, int thresh2 = 200, int blurSize = 3) {
+	Mat src_gray;
+	Mat canny_output;
+	std::vector<cv::Vec4i> hierarchy;
+
+	/// Convert image to gray and blur it
+	cvtColor(insertImage, src_gray, CV_BGR2GRAY);
+	blur(src_gray, src_gray, Size(blurSize, blurSize));
+
+	//imshow("before dilate", src_gray);
+
+	dilate(src_gray, src_gray, vector<Vec6i>());
+
+	//imshow("after dilate",src_gray);
+
+	/// Detect edges using canny
+	Canny(src_gray, canny_output, thresh, thresh2, 3);
+	
+	/// Find contours
+	findContours(canny_output, contours, hierarchy, RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS, Point(0, 0));
+}
+
 int main(int argc, char** argv)
 {
 	/// Initialize vars
 	Mat im; 
-	Mat src_gray;
-	int thresh = 100;
-	int max_thresh = 255;
 	RNG rng(12345);
+	std::vector<std::vector<cv::Point> > contours;
 
 	/// Load source image and convert it to gray
 	if (argc != 2) {
 		return -1;
 	}
-	im = imread(argv[1], 1);
+	im = imread(argv[1], CV_LOAD_IMAGE_COLOR);
 
-	/// Convert image to gray and blur it
-	cvtColor(im, src_gray, CV_BGR2GRAY);
-	blur(src_gray, src_gray, Size(3, 3));
+	/// Check for invalid input
+	if (!im.data)                              
+	{
+		cout << "Could not open or find the image" << std::endl;
+		return -1;
+	}
 
-	Mat canny_output;
-	std::vector<std::vector<cv::Point> > contours;
-	std::vector<cv::Vec4i> hierarchy;
-
-
-	/// Detect edges using canny
-	Canny(src_gray, canny_output, thresh, thresh * 2, 3);
-	/// Find contours
-	findContours(canny_output, contours, hierarchy, RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
-	//findContours(canny_output, contours, hierarchy, Imgproc.RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
-	//findContours(im.clone(), contours, hierarchy, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+	getDistinctContures(im, contours);
 
 	/// Convert every contour into its bounding box
 	vector<Rect> boxes;
@@ -287,6 +365,10 @@ int main(int argc, char** argv)
 		//drawContours(grouped, contours, i, color, CV_FILLED);
 	}
 
+	// nakon grupisanja kontura iz contours2 probati da svaku konturu posebno nacrtas na slici pa od takve slike izvadis konture i to external?
+	Mat slicica = Mat::zeros(grouped.size(), CV_8UC3);
+	
+
 	/// Draw merged contours on new image
 	Mat drawingContours2 = Mat::zeros(grouped.size(), CV_8UC3);
 	for (int i = 0; i< contours2.size(); i++)
@@ -299,9 +381,28 @@ int main(int argc, char** argv)
 		Scalar color = Scalar(rng2.uniform(0, 255), rng2.uniform(0, 255), rng2.uniform(0, 255));
 		drawContours(drawingContours2, contours2, i, color, CV_FILLED, 8, vector<Vec4i>(), 0, Point());
 		//drawContours(drawingContours2, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point());
+
+		drawContours(slicica, contours2, i, Scalar(255, 255, 255), CV_FILLED, 8, vector<Vec4i>(), 0, Point());
 	}
 	//namedWindow("my demo", CV_WINDOW_AUTOSIZE);
 	//imshow("my demo", drawingContours2);
+
+	//std::vector<std::vector<cv::Point> > contours3;
+
+	//getDistinctContures(slicica,contours3,100,200,3);
+	
+	//Mat slicicica = Mat::zeros(grouped.size(), CV_8UC3);
+	//for (int i = 0; i< contours3.size(); i++)
+	//{
+	//	drawContours(slicicica, contours3, i, Scalar(255, 255, 255), CV_FILLED, 8, vector<Vec4i>(), 0, Point());
+	//}
+	//imshow("slicicica",slicicica);
+
+	//findContours(slicicica, contours3, hierarchy, RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+
+	//printf("\nima %d\n", contours3.size());
+
+	//imshow("slicia",slicica);
 
 	/// Fill single object with color
 	vector<vector<Point> >hull(contours2.size());
@@ -315,16 +416,30 @@ int main(int argc, char** argv)
 	for (int i = 0; i< contours2.size(); i++)
 	{
 		Scalar color = colors[i];//Scalar(rng2.uniform(0, 255), rng2.uniform(0, 255), rng2.uniform(0, 255));//
-		//drawContours(drawing, contours2, i, color, -100, 8, vector<Vec4i>(), 0, Point());
-		drawContours(grouped, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point());
+		
+		drawContours(grouped, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point()); // -- ovo ne izgleda fino zato sto je konveksan hull umjesto konkavan
+		//drawContours(grouped, contours2, i, color, -100, 8, vector<Vec4i>(), 0, Point()); // -- ovo ne izgleda fino zato sto radim spajanja slucajno odabranih tacaka
+		
+		
 		// drawContours(drawing, hull, i, color, -100, 8, vector<Vec4i>(), 0, Point());
 	}
 	/// Show in a window
 	//namedWindow("Hull demo", CV_WINDOW_AUTOSIZE);
 	//imshow("Hull demo", drawing);
 
+	/// Show starting image
 	imshow("im", im);
+	/// Show generated depthmap of an image
 	imshow("grouped", grouped);
+	/// Write depthmap to a file
 	imwrite("../data/grouped.jpg", grouped);
+
+	/// Generate red-cyan image
+	Mat redCyan = Mat::zeros(grouped.size(), CV_8UC3);
+	generateRedCyan(redCyan, im, grouped);
+
+	/// Show red-cyan 3d image
+	imshow("redCyan", redCyan);
+
 	waitKey(0);
 }

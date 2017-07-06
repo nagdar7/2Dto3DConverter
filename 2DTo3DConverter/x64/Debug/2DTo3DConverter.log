@@ -1,4 +1,4 @@
 ﻿  Source.cpp
-c:\users\dragan\desktop\2dto3dconverter\2dto3dconverter\2dto3dconverter\source.cpp(245): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\users\dragan\desktop\2dto3dconverter\2dto3dconverter\2dto3dconverter\source.cpp(323): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
   2DTo3DConverter.vcxproj -> C:\Users\Dragan\Desktop\2Dto3DConverter\2Dto3DConverter\x64\Debug\2DTo3DConverter.exe
   2DTo3DConverter.vcxproj -> C:\Users\Dragan\Desktop\2Dto3DConverter\2Dto3DConverter\x64\Debug\2DTo3DConverter.pdb (Full PDB)
